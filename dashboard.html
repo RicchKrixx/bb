@@ -1,0 +1,70 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8"/>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>BizMAX | Dashboard</title>
+  <style>
+    :root{--cyan:#00e5ff;--dark:#121212}
+    body{margin:0;background:var(--dark);color:#fff;display:flex;flex-direction:column;
+         align-items:center;justify-content:center;height:100vh;font-family:sans-serif}
+    .box{background:#1e1e1e;padding:2rem;border-radius:1rem;text-align:center;
+         box-shadow:0 0 20px #00e5ff33;width:90%;max-width:400px}
+    button{margin-top:1.5rem;padding:.75rem 1.5rem;border:none;border-radius:.75rem;
+           background:var(--cyan);color:#000;font-weight:600;cursor:pointer}
+  </style>
+</head>
+<body>
+  <div class="box">
+    <h2>Welcome, <span id="uName">User</span> 🎉</h2>
+    <p id="uEmail"></p>
+    <button id="signOutBtn">Sign out</button>
+  </div>
+
+  <!-- Firebase -->
+  <script src="https://www.gstatic.com/firebasejs/9.6.10/firebase-app.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/9.6.10/firebase-auth.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/9.6.10/firebase-firestore.js"></script>
+
+  <script type="module">
+    /* Same config as index.html */
+    const firebaseConfig={
+      apiKey:"YOUR_API_KEY",
+      authDomain:"YOUR_APP.firebaseapp.com",
+      projectId:"YOUR_APP",
+      appId:"YOUR_APP_ID"
+    };
+
+    import{initializeApp}from"https://www.gstatic.com/firebasejs/9.6.10/firebase-app.js";
+    import{
+      getAuth,onAuthStateChanged,signOut
+    }from"https://www.gstatic.com/firebasejs/9.6.10/firebase-auth.js";
+    import{
+      getFirestore,doc,getDoc
+    }from"https://www.gstatic.com/firebasejs/9.6.10/firebase-firestore.js";
+
+    const app = initializeApp(firebaseConfig);
+    const auth=getAuth(app);
+    const db  =getFirestore(app);
+
+    const uName=document.getElementById("uName");
+    const uEmail=document.getElementById("uEmail");
+
+    /* Protect the page */
+    onAuthStateChanged(auth,async user=>{
+      if(!user||!user.emailVerified){
+        window.location="index.html";return;
+      }
+      uEmail.textContent=user.email;
+      /* Pull extra profile data from Firestore */
+      const snap=await getDoc(doc(db,"users",user.uid));
+      if(snap.exists()) uName.textContent=snap.data().name||"User";
+    });
+
+    /* Sign-out */
+    document.getElementById("signOutBtn").onclick=()=>signOut(auth).then(
+      ()=>window.location="index.html"
+    );
+  </script>
+</body>
+</html>
