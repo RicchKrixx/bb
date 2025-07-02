@@ -1,0 +1,153 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>BizMAX | Login & Sign Up</title>
+
+  <!-- BizMAX–style colours; tweak as you like -->
+  <style>
+    :root { --cyan:#00e5ff; --dark:#121212; --glass:#ffffff11; }
+    *{box-sizing:border-box;font-family:sans-serif}
+    body{margin:0;display:flex;justify-content:center;align-items:center;
+         height:100vh;background:var(--dark);color:#fff}
+    .card{background:var(--glass);backdrop-filter:blur(25px);padding:2rem;
+          border-radius:1rem;width:100%;max-width:360px;box-shadow:0 0 20px #00e5ff33}
+    .tabs{display:flex;gap:1rem;margin-bottom:1rem}
+    .tabs button{flex:1;background:none;border:none;padding:.75rem;color:#bbb;
+                 font-size:1rem;cursor:pointer;border-bottom:2px solid transparent}
+    .tabs button.active{color:var(--cyan);border-color:var(--cyan);font-weight:600}
+    form{display:none;flex-direction:column;gap:.75rem}
+    form.active{display:flex}
+    input{padding:.75rem;border:none;border-radius:.75rem;background:#1e1e1e;color:#fff}
+    .toggle{font-size:.75rem;text-align:right;color:var(--cyan);cursor:pointer}
+    button[type=submit]{padding:.75rem;border:none;border-radius:.75rem;
+                        background:var(--cyan);color:#000;font-weight:600;cursor:pointer}
+    #alert{margin-top:.5rem;font-size:.85rem;min-height:1.2em}
+    a{color:var(--cyan);font-size:.8rem;text-decoration:none}
+  </style>
+</head>
+<body>
+  <div class="card">
+    <div class="tabs">
+      <button id="loginTab" class="active">Login</button>
+      <button id="signTab">Sign Up</button>
+    </div>
+
+    <!-- LOGIN -->
+    <form id="loginForm" class="active">
+      <input id="loginEmail" type="email" placeholder="Email" required />
+      <input id="loginPass"  type="password" placeholder="Password" required />
+      <div class="toggle" onclick="toggle('loginPass')">Show password</div>
+      <button type="submit">Login</button>
+      <a href="#" id="forgotLink">Forgot password?</a>
+    </form>
+
+    <!-- SIGN-UP -->
+    <form id="signForm">
+      <input id="signName"  type="text"     placeholder="Full name" required />
+      <input id="signEmail" type="email"    placeholder="Email"     required />
+      <input id="signPass"  type="password" placeholder="Password"  required />
+      <div class="toggle" onclick="toggle('signPass')">Show password</div>
+      <button type="submit">Create Account</button>
+    </form>
+
+    <div id="alert"></div>
+  </div>
+
+  <!-- Firebase SDKs -->
+  <script src="https://www.gstatic.com/firebasejs/9.6.10/firebase-app.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/9.6.10/firebase-auth.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/9.6.10/firebase-firestore.js"></script>
+
+  <script type="module">
+    /* 1. 🔑  Replace with your real config  */
+    const firebaseConfig={
+      apiKey:"YOUR_API_KEY",
+      authDomain:"YOUR_APP.firebaseapp.com",
+      projectId:"YOUR_APP",
+      appId:"YOUR_APP_ID"
+    };
+
+    /* 2.  Init Firebase */
+    import{initializeApp}from"https://www.gstatic.com/firebasejs/9.6.10/firebase-app.js";
+    import{
+      getAuth,createUserWithEmailAndPassword,signInWithEmailAndPassword,
+      sendEmailVerification,sendPasswordResetEmail,onAuthStateChanged,signOut
+    }from"https://www.gstatic.com/firebasejs/9.6.10/firebase-auth.js";
+    import{getFirestore,doc,setDoc}from"https://www.gstatic.com/firebasejs/9.6.10/firebase-firestore.js";
+
+    const app  = initializeApp(firebaseConfig);
+    const auth = getAuth(app);
+    const db   = getFirestore(app);
+
+    /* 3.  DOM shortcuts */
+    const $ = id=>document.getElementById(id);
+    const loginTab=$("loginTab"),signTab=$("signTab");
+    const loginForm=$("loginForm"),signForm=$("signForm"),alertBox=$("alert");
+
+    /* 4.  Tab switching */
+    loginTab.onclick=()=>switchTab(true);
+    signTab.onclick =()=>switchTab(false);
+    function switchTab(isLogin){
+      [loginTab,signTab][+!isLogin].classList.remove("active");
+      [loginTab,signTab][+isLogin].classList.add("active");
+      [loginForm,signForm][+!isLogin].classList.remove("active");
+      [loginForm,signForm][+isLogin].classList.add("active");
+      alertBox.textContent="";
+    }
+
+    /* 5.  Show/Hide password */
+    window.toggle=id=>{
+      const f=$(id);
+      f.type=f.type==="password"?"text":"password";
+    };
+
+    /* 6.  Sign Up */
+    signForm.onsubmit=async e=>{
+      e.preventDefault();
+      const email=signEmail.value.trim(), pass=signPass.value, name=signName.value.trim();
+      try{
+        const {user}=await createUserWithEmailAndPassword(auth,email,pass);
+        await setDoc(doc(db,"users",user.uid),{name,email,created:Date.now()});
+        await sendEmailVerification(user);
+        alertBox.textContent="✅ Account created! Check your email to verify.";
+        signForm.reset();
+      }catch(err){alertBox.textContent="❌ "+err.message;}
+    };
+
+    /* 7.  Login */
+    loginForm.onsubmit=async e=>{
+      e.preventDefault();
+      try{
+        const email=loginEmail.value.trim(), pass=loginPass.value;
+        const {user}=await signInWithEmailAndPassword(auth,email,pass);
+        if(!user.emailVerified){
+          alertBox.textContent="⚠️ Verify your email first.";
+          await sendEmailVerification(user);
+          await signOut(auth);
+        }else{
+          window.location="dashboard.html";
+        }
+      }catch(err){alertBox.textContent="❌ "+err.message;}
+    };
+
+    /* 8.  Forgot-password */
+    $("forgotLink").onclick=async e=>{
+      e.preventDefault();
+      const email=prompt("Enter your account email:");
+      if(email){
+        try{
+          await sendPasswordResetEmail(auth,email);
+          alert("Password-reset link sent!");
+        }catch(err){alert("Error: "+err.message);}
+      }
+    };
+
+    /* 9.  Auto-redirect if already signed in */
+    onAuthStateChanged(auth,user=>{
+      if(user&&user.emailVerified) window.location="dashboard.html";
+    });
+  </script>
+</body>
+	</html>
